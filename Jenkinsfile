@@ -1,5 +1,15 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:22'    // Use Node 22 instead of 18
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
+
+    environment {
+        DOCKER_IMAGE = "react-automate"
+        DOCKERHUB_REPO = "rakeshbhai"
+    }
 
     stages {
 
@@ -24,7 +34,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t react-automate .'
+                sh '''
+                    docker build -t ${DOCKER_IMAGE}:latest .
+                '''
             }
         }
 
@@ -37,8 +49,8 @@ pipeline {
                 )]) {
                     sh '''
                         echo $PASS | docker login -u $USER --password-stdin
-                        docker tag react-automate $USER/react-automate:latest
-                        docker push $USER/react-automate:latest
+                        docker tag ${DOCKER_IMAGE}:latest $USER/${DOCKER_IMAGE}:latest
+                        docker push $USER/${DOCKER_IMAGE}:latest
                     '''
                 }
             }
@@ -49,10 +61,15 @@ pipeline {
                 sshagent(['rakesh-pem']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ubuntu@52.91.154.113 <<EOF
-                        docker pull rakeshbhai/react-automate:latest
-                        docker stop react-automate || true
-                        docker rm react-automate || true
-                        docker run -d -p 80:80 --name react-automate rakeshbhai/react-automate:latest
+                        echo "Pulling latest image..."
+                        docker pull ${DOCKERHUB_REPO}/${DOCKER_IMAGE}:latest
+
+                        echo "Stopping old container..."
+                        docker stop ${DOCKER_IMAGE} || true
+                        docker rm ${DOCKER_IMAGE} || true
+
+                        echo "Starting new container..."
+                        docker run -d -p 80:80 --name ${DOCKER_IMAGE} ${DOCKERHUB_REPO}/${DOCKER_IMAGE}:latest
                         EOF
                     '''
                 }
