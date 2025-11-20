@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:22'    // Use Node 22 instead of 18
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     environment {
         DOCKER_IMAGE = "react-automate"
@@ -20,23 +15,22 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Build Frontend (Node 22)') {
             steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Build React App') {
-            steps {
-                sh 'npm run build'
+                script {
+                    docker.image('node:22').inside('-v /var/run/docker.sock:/var/run/docker.sock') {
+                        sh '''
+                            npm install
+                            npm run build
+                        '''
+                    }
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    docker build -t ${DOCKER_IMAGE}:latest .
-                '''
+                sh 'docker build -t ${DOCKER_IMAGE}:latest .'
             }
         }
 
@@ -61,19 +55,15 @@ pipeline {
                 sshagent(['rakesh-pem']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ubuntu@52.91.154.113 <<EOF
-                        echo "Pulling latest image..."
                         docker pull ${DOCKERHUB_REPO}/${DOCKER_IMAGE}:latest
-
-                        echo "Stopping old container..."
                         docker stop ${DOCKER_IMAGE} || true
                         docker rm ${DOCKER_IMAGE} || true
-
-                        echo "Starting new container..."
                         docker run -d -p 80:80 --name ${DOCKER_IMAGE} ${DOCKERHUB_REPO}/${DOCKER_IMAGE}:latest
                         EOF
                     '''
                 }
             }
         }
+
     }
 }
