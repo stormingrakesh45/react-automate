@@ -2,11 +2,6 @@ pipeline {
     agent any
 
     stages {
-        stage('Clone Repo') {
-    steps {
-        git branch: 'main', url: 'https://github.com/stormingrakesh45/react-automate'
-         }
-                            }
 
         stage('Build Docker Image') {
             steps {
